@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Model Tuning</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Max Kuhn" />
+    <script src="libs/header-attrs-2.9/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/theme.css" type="text/css" />
+    <link rel="stylesheet" href="css/fonts.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+
+
+
+
+class: title-slide, left, middle
+background-image: url("images/tidymodels.svg")
+background-position: 85% 50%
+background-size: 30%
+background-color: #F9F8F3
+
+.pull-left[
+
+# Model Tuning
+
+## Max Kuhn
+
+### New York R Conference
+
+### Repo: [https://github.com/topepo/2021-nyr-workshop](https://github.com/topepo/https://github.com/topepo/2021-nyr-workshop)
+
+]
+
+
+---
+layout: false
+class: inverse, middle, center
+
+# [`tidymodels.org`](https://www.tidymodels.org/)
+
+# _Tidy Modeling with R_ ([`tmwr.org`](https://www.tmwr.org/))
+
+
+---
+# Tuning parameters
+
+These are model or preprocessing parameters that are important but cannot be estimated directly form the data. 
+
+Some examples:
+
+.pull-left[
+
+* Tree depth in decision trees.
+
+* Number of neighbors in a K-nearest neighbor model. 
+
+* Activation function (e.g. sigmoidal, ReLu) in neural networks. 
+
+* Number of PCA components to retain
+
+]
+.pull-right[
+
+* Covariance/correlation matrix structure in mixed models.
+
+* Data distribution in survival models.
+
+* Spline degrees of freedom. 
+]
+
+---
+# Optimizng tuning parameters
+
+The main approach is to try different values and measure their performance. This can lead us to good values for these parameters. 
+
+The main two classes of optimization models are: 
+
+ * _Grid search_ where a pre-defined set of candidate values are tested. 
+ 
+ * _Iterative search_ methods suggest/estimate new values of candidate parameters to evaluate. 
+
+Once the value(s) of the parameter(s) are determine, a model can be finalized but fitting the model to the entire training set. 
+
+
+---
+# Measuring tuning paramters
+
+We need performance metrics to tell us which candidate values are good and which are not. 
+
+Using the test set, or simply re-predicting the training set, are very bad ideas. 
+
+Since tuning parameters often control complexity, they can often lead to [_overfitting_](https://www.tmwr.org/tuning.html#overfitting-bad). 
+
+* This is where the model does very well on the training set but poorly on new data. 
+
+Using _resampling_ to estimate performance can help identify parameters that lead to overfitting. 
+
+The cost is computational time. 
+
+---
+# Overfitting with a support vector machine
+
+&lt;img src="images/tuning-overfitting-1.svg" width="60%" style="display: block; margin: auto;" /&gt;
+
+---
+# Choosing tuning parameters
+
+Let's take our previous model and add a few changes:
+
+
+```r
+lm_spec &lt;- 
+  linear_reg() %&gt;% 
+  set_engine("lm")
+
+chi_rec &lt;- 
+  recipe(ridership ~ ., data = chi_train) %&gt;% 
+  step_date(date, features = c("dow", "year")) %&gt;% 
+  step_holiday(date) %&gt;% 
+  update_role(date, new_role = "id") %&gt;% 
+  step_dummy(all_nominal_predictors()) %&gt;% 
+  step_zv(all_predictors()) %&gt;% 
+  step_normalize(all_numeric_predictors()) %&gt;% 
+  step_corr(all_numeric_predictors(), threshold = 0.9)
+
+chi_wflow &lt;- 
+  workflow() %&gt;% 
+  add_model(lm_spec) %&gt;% 
+  add_recipe(chi_rec)
+```
+
+---
+# Use regularizaed regression
+
+
+```r
+lm_spec &lt;- 
+  linear_reg() %&gt;% 
+* set_engine("glmnet")
+
+chi_rec &lt;- 
+  recipe(ridership ~ ., data = chi_train) %&gt;% 
+  step_date(date, features = c("dow", "year")) %&gt;% 
+  step_holiday(date) %&gt;% 
+  update_role(date, new_role = "id") %&gt;% 
+  step_dummy(all_nominal_predictors()) %&gt;% 
+  step_zv(all_predictors()) %&gt;% 
+  step_normalize(all_numeric_predictors()) %&gt;% 
+  step_corr(all_numeric_predictors(), threshold = 0.9)
+
+chi_wflow &lt;- 
+  workflow() %&gt;% 
+  add_model(lm_spec) %&gt;% 
+  add_recipe(chi_rec)
+```
+
+---
+# Add model parameters
+
+
+```r
+lm_spec &lt;- 
+* linear_reg(penalty, mixture) %&gt;%
+  set_engine("glmnet") 
+
+chi_rec &lt;- 
+  recipe(ridership ~ ., data = chi_train) %&gt;% 
+  step_date(date, features = c("dow", "year")) %&gt;% 
+  step_holiday(date) %&gt;% 
+  update_role(date, new_role = "id") %&gt;% 
+  step_dummy(all_nominal_predictors()) %&gt;% 
+  step_zv(all_predictors()) %&gt;% 
+  step_normalize(all_numeric_predictors()) %&gt;% 
+  step_corr(all_numeric_predictors(), threshold = 0.9)
+
+chi_wflow &lt;- 
+  workflow() %&gt;% 
+  add_model(lm_spec) %&gt;% 
+  add_recipe(chi_rec)
+```
+
+
+---
+# Mark them for tuning
+
+
+```r
+lm_spec &lt;- 
+* linear_reg(penalty = tune(), mixture = tune()) %&gt;%
+  set_engine("glmnet") 
+
+chi_rec &lt;- 
+  recipe(ridership ~ ., data = chi_train) %&gt;% 
+  step_date(date, features = c("dow", "year")) %&gt;% 
+  step_holiday(date) %&gt;% 
+  update_role(date, new_role = "id") %&gt;% 
+  step_dummy(all_nominal_predictors()) %&gt;% 
+  step_zv(all_predictors()) %&gt;% 
+  step_normalize(all_numeric_predictors()) %&gt;% 
+  step_corr(all_numeric_predictors(), threshold = 0.9)
+
+chi_wflow &lt;- 
+  workflow() %&gt;% 
+  add_model(lm_spec) %&gt;% 
+  add_recipe(chi_rec)
+```
+
+---
+# Remove unneeded step
+
+
+```r
+lm_spec &lt;- 
+  linear_reg(penalty = tune(), mixture = tune()) %&gt;% 
+  set_engine("glmnet") 
+
+chi_rec &lt;- 
+  recipe(ridership ~ ., data = chi_train) %&gt;% 
+  step_date(date, features = c("dow", "year")) %&gt;% 
+  step_holiday(date) %&gt;% 
+  update_role(date, new_role = "id") %&gt;% 
+  step_dummy(all_nominal_predictors()) %&gt;% 
+  step_zv(all_predictors()) %&gt;% 
+  step_normalize(all_numeric_predictors())
+
+
+chi_wflow &lt;- 
+  workflow() %&gt;% 
+  add_model(lm_spec) %&gt;% 
+  add_recipe(chi_rec)
+```
+
+---
+# Add a spline step (just for demonstration)
+
+
+
+```r
+lm_spec &lt;- 
+  linear_reg(penalty = tune(), mixture = tune()) %&gt;% 
+  set_engine("glmnet") 
+
+chi_rec &lt;- 
+  recipe(ridership ~ ., data = chi_train) %&gt;% 
+  step_date(date, features = c("dow", "year")) %&gt;% 
+  step_holiday(date) %&gt;% 
+  update_role(date, new_role = "id") %&gt;% 
+  step_dummy(all_nominal_predictors()) %&gt;% 
+  step_zv(all_predictors()) %&gt;% 
+* step_ns(temp, deg_free = tune()) %&gt;%
+  step_normalize(all_numeric_predictors())
+
+chi_wflow &lt;- 
+  workflow() %&gt;% 
+  add_model(lm_spec) %&gt;% 
+  add_recipe(chi_rec)
+```
+
+---
+# Grid search
+
+This is the most basic (but very effective) way for tuning models. 
+
+tidymodels has pre-defined information on tuning parameters, such as their type, range, transformations, etc. 
+
+A grid can be created manually or automatically. 
+
+The `parameters()` function extracts the tuning parameters and the info. 
+
+The `grid_*()` functions can make a grid. 
+
+
+---
+# Manual grid - get parameters
+
+.pull-left[
+
+```r
+chi_wflow %&gt;% 
+  parameters()
+```
+This type of object can be updated (e.g. to change the ranges, etc)
+
+]
+.pull-right[
+
+```
+## Collection of 3 parameters for tuning
+## 
+##  identifier     type    object
+##     penalty  penalty nparam[+]
+##     mixture  mixture nparam[+]
+##    deg_free deg_free nparam[+]
+```
+]
+
+
+---
+# Manual grid - create grid
+
+.pull-left[
+
+```r
+set.seed(2)
+grid &lt;- 
+  chi_wflow %&gt;% 
+  parameters() %&gt;% 
+  grid_latin_hypercube(size = 25)
+
+grid
+```
+
+
+This is a type of _space-filling design_. 
+
+It tends to do much better than random grids and is (usually) more efficient than regular grids. 
+
+]
+.pull-right[
+
+```
+## # A tibble: 25 × 3
+##        penalty mixture deg_free
+##          &lt;dbl&gt;   &lt;dbl&gt;    &lt;int&gt;
+## 1 0.124          0.309        2
+## 2 0.0000000474   0.269        5
+## 3 0.0000000101   0.810        4
+## 4 0.0000140      0.527       11
+## 5 0.172          0.897        3
+## 6 0.0000329      0.701        3
+## # … with 19 more rows
+```
+]
+
+
+---
+# The results
+
+.pull-left[
+
+```r
+set.seed(2)
+grid &lt;- 
+  chi_wflow %&gt;% 
+  parameters() %&gt;% 
+  grid_latin_hypercube(size = 25)
+
+grid %&gt;% 
+  ggplot(aes(penalty, mixture, col = deg_free)) + 
+  geom_point(cex = 4) + 
+  scale_x_log10()
+```
+
+Note that `penalty` was generated in log-10 units. 
+]
+
+.pull-right[
+&lt;img src="images/tuning-unnamed-chunk-9-1.svg" width="90%" style="display: block; margin: auto;" /&gt;
+]
+
+---
+# Grid search
+
+The `tune_*()` functions can be used to tune models. 
+
+`tune_grid()` is pretty representative of their syntax (and is similar to `last_fit()`): 
+
+
+```r
+ctrl &lt;- control_grid(save_pred = TRUE)
+set.seed(9)
+chi_res &lt;- 
+  chi_wflow %&gt;% 
+  tune_grid(resamples = chi_rs, grid = grid) # 'grid' = integer for automatic grids
+chi_res
+```
+
+```
+## # Tuning results
+## # Sliding period resampling 
+## # A tibble: 16 × 4
+##   splits            id      .metrics          .notes          
+##   &lt;list&gt;            &lt;chr&gt;   &lt;list&gt;            &lt;list&gt;          
+## 1 &lt;split [5463/14]&gt; Slice01 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
+## 2 &lt;split [5467/14]&gt; Slice02 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
+## 3 &lt;split [5467/14]&gt; Slice03 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
+## 4 &lt;split [5467/14]&gt; Slice04 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
+## 5 &lt;split [5467/14]&gt; Slice05 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
+## 6 &lt;split [5467/14]&gt; Slice06 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
+## # … with 10 more rows
+```
+
+---
+# Grid results
+
+
+```r
+autoplot(chi_res)
+```
+
+&lt;img src="images/tuning-autoplot-1.svg" width="70%" style="display: block; margin: auto;" /&gt;
+
+
+---
+# ENHANCE
+
+
+```r
+autoplot(chi_res, metric = "rmse")  +
+  ylim(c(1.7, 1.85))
+```
+
+&lt;img src="images/tuning-enhacned-1.svg" width="80%" style="display: block; margin: auto;" /&gt;
+
+
+---
+# Returning results
+
+
+```r
+collect_metrics(chi_res)
+```
+
+```
+## # A tibble: 50 × 9
+##        penalty mixture deg_free .metric .estimator  mean     n std_err .config      
+##          &lt;dbl&gt;   &lt;dbl&gt;    &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;        
+## 1 0.124          0.309        2 rmse    standard   2.11     16  0.266  Preprocessor…
+## 2 0.124          0.309        2 rsq     standard   0.924    16  0.0249 Preprocessor…
+## 3 0.491          0.817        2 rmse    standard   2.95     16  0.402  Preprocessor…
+## 4 0.491          0.817        2 rsq     standard   0.848    16  0.0502 Preprocessor…
+## 5 0.0000000474   0.269        5 rmse    standard   1.74     16  0.241  Preprocessor…
+## 6 0.0000000474   0.269        5 rsq     standard   0.947    16  0.0213 Preprocessor…
+## # … with 44 more rows
+```
+
+```r
+collect_metrics(chi_res, summarize = FALSE)
+```
+
+```
+## # A tibble: 800 × 8
+##   id      penalty mixture deg_free .metric .estimator .estimate .config             
+##   &lt;chr&gt;     &lt;dbl&gt;   &lt;dbl&gt;    &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;               
+## 1 Slice01   0.124   0.309        2 rmse    standard       4.20  Preprocessor01_Mode…
+## 2 Slice01   0.124   0.309        2 rsq     standard       0.722 Preprocessor01_Mode…
+## 3 Slice02   0.124   0.309        2 rmse    standard       1.96  Preprocessor01_Mode…
+## 4 Slice02   0.124   0.309        2 rsq     standard       0.961 Preprocessor01_Mode…
+## 5 Slice03   0.124   0.309        2 rmse    standard       2.30  Preprocessor01_Mode…
+## 6 Slice03   0.124   0.309        2 rsq     standard       0.915 Preprocessor01_Mode…
+## # … with 794 more rows
+```
+
+---
+# Metrics over time
+
+.pull-left[
+
+```r
+chi_res %&gt;% 
+  add_date_to_metrics("date") %&gt;% 
+  filter(.metric == "rmse") %&gt;% 
+  ggplot(aes(x = date, y = .estimate, 
+             group = .config, col = .config)) + 
+  geom_line(show.legend = FALSE, alpha = .3) +
+  labs(y = "RMSE")
+```
+]
+.pull-right[
+&lt;img src="images/tuning-unnamed-chunk-11-1.svg" width="80%" style="display: block; margin: auto;" /&gt;
+]
+
+---
+# Picking a parameter combination
+
+You can create a tibble of your own or use one of the `tune::select_*()` functions: 
+
+
+```r
+show_best(chi_res, metric = "rmse")
+```
+
+```
+## # A tibble: 5 × 9
+##    penalty mixture deg_free .metric .estimator  mean     n std_err .config          
+##      &lt;dbl&gt;   &lt;dbl&gt;    &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;            
+## 1 1.01e- 8   0.810        4 rmse    standard    1.72    16   0.241 Preprocessor03_M…
+## 2 3.29e- 5   0.701        3 rmse    standard    1.73    16   0.241 Preprocessor05_M…
+## 3 3.11e- 3   0.869       15 rmse    standard    1.74    16   0.242 Preprocessor12_M…
+## 4 2.41e- 4   0.949        7 rmse    standard    1.74    16   0.240 Preprocessor09_M…
+## 5 5.41e-10   0.633        6 rmse    standard    1.74    16   0.241 Preprocessor07_M…
+```
+
+```r
+smallest_rmse &lt;- 
+  select_best(chi_res, metric = "rmse")
+smallest_rmse
+```
+
+```
+## # A tibble: 1 × 4
+##        penalty mixture deg_free .config              
+##          &lt;dbl&gt;   &lt;dbl&gt;    &lt;int&gt; &lt;chr&gt;                
+## 1 0.0000000101   0.810        4 Preprocessor03_Model1
+```
+
+
+---
+# Updating the workflow and final fit
+
+
+```r
+chi_wflow &lt;-
+  chi_wflow %&gt;% 
+  finalize_workflow(smallest_rmse)
+
+test_res &lt;- 
+  chi_wflow %&gt;% 
+  last_fit(split = chi_split)
+test_res
+```
+
+```
+## # Resampling results
+## # Manual resampling 
+## # A tibble: 1 × 6
+##   splits            id               .metrics         .notes  .predictions .workflow
+##   &lt;list&gt;            &lt;chr&gt;            &lt;list&gt;           &lt;list&gt;  &lt;list&gt;       &lt;list&gt;   
+## 1 &lt;split [5684/14]&gt; train/test split &lt;tibble [2 × 4]&gt; &lt;tibbl… &lt;tibble [14… &lt;workflo…
+```
+
+The workflow, fit using the training set:
+
+
+```r
+final_chi_wflow &lt;- 
+  test_res$.workflow[[1]]
+```
+
+---
+# Two-week test set results
+
+
+```r
+collect_metrics(test_res)
+```
+
+```
+## # A tibble: 2 × 4
+##   .metric .estimator .estimate .config             
+##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;               
+## 1 rmse    standard       0.976 Preprocessor1_Model1
+## 2 rsq     standard       0.990 Preprocessor1_Model1
+```
+
+```r
+# Resampling results
+show_best(chi_res, metric = "rmse", n = 1)
+```
+
+```
+## # A tibble: 1 × 9
+##        penalty mixture deg_free .metric .estimator  mean     n std_err .config      
+##          &lt;dbl&gt;   &lt;dbl&gt;    &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;        
+## 1 0.0000000101   0.810        4 rmse    standard    1.72    16   0.241 Preprocessor…
+```
+
+
+
+---
+# Two-week test set results
+
+
+.pull-left[
+
+```r
+test_res %&gt;% 
+  collect_predictions() %&gt;% 
+  ggplot(aes(ridership, .pred)) + 
+  geom_abline(col = "green", lty = 2) + 
+  geom_point(cex = 3, alpha = 0.5) + 
+  coord_obs_pred()
+```
+
+]
+
+.pull-right[
+&lt;img src="images/tuning-unnamed-chunk-16-1.svg" width="90%" style="display: block; margin: auto;" /&gt;
+]
+
+
+---
+# Two-week test set results
+
+
+.pull-left[
+
+```r
+library(lubridate)
+test_values &lt;- 
+  final_chi_wflow %&gt;% 
+  augment(testing(chi_split)) %&gt;% 
+  mutate(day = wday(date, label = TRUE)) 
+
+test_values %&gt;% 
+  ggplot(aes(ridership, .pred, col = day)) + 
+  geom_abline(col = "green", lty = 2) + 
+  geom_point(cex = 3, alpha = 0.5) + 
+  coord_obs_pred() + 
+  scale_color_brewer(palette = "Dark2")
+```
+
+]
+
+.pull-right[
+&lt;img src="images/tuning-unnamed-chunk-17-1.svg" width="90%" style="display: block; margin: auto;" /&gt;
+]
+
+
+---
+# Two-week test set results
+
+.pull-left[
+
+```r
+test_values %&gt;% 
+  ggplot(aes(date, ridership)) + 
+  geom_point(aes(col = day), 
+             cex = 3, alpha = 0.5) +
+  geom_line(aes(y = .pred)) + 
+  scale_color_brewer(palette = "Dark2")
+```
+
+]
+
+.pull-right[
+&lt;img src="images/tuning-unnamed-chunk-18-1.svg" width="100%" style="display: block; margin: auto;" /&gt;
+]
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"slideNumberFormat": "<div class=\"progress-bar-container\">\n  <div class=\"progress-bar\" style=\"width: calc(%current% / %total% * 100%);\">\n  </div>\n</div>\n",
+"highlightStyle": "rainbow",
+"highlightLanguage": ["r", "css", "yaml"],
+"highlightLines": true,
+"countIncrementalSlides": false,
+"ratio": "16:9"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

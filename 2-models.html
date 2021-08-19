@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Creating Models</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Max Kuhn" />
+    <script src="libs/header-attrs-2.9/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/theme.css" type="text/css" />
+    <link rel="stylesheet" href="css/fonts.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+
+
+
+
+class: title-slide, left, middle
+background-image: url("images/tidymodels.svg")
+background-position: 85% 50%
+background-size: 30%
+background-color: #F9F8F3
+
+.pull-left[
+
+# Creating Models
+
+## Max Kuhn
+
+### New York R Conference
+
+### Repo: [https://github.com/topepo/2021-nyr-workshop](https://github.com/topepo/https://github.com/topepo/2021-nyr-workshop)
+
+]
+
+
+---
+layout: false
+class: inverse, middle, center
+
+# [`tidymodels.org`](https://www.tidymodels.org/)
+
+# _Tidy Modeling with R_ ([`tmwr.org`](https://www.tmwr.org/))
+
+---
+# Define the score of "The Model" 
+
+In tidymodels, there is the idea that a model-oriented data analysis consists of
+
+ - a preprocessor, and 
+ - a model
+ 
+The preprocessor might be a simple formula or a sophisticated recipe.  
+
+It's important to consider both of these activities as part of the data analysis process.
+
+ - Post-model activities should also be included there (e.g. calibration, cut-off optimization, etc.)
+ - We don't have those implemented yet. 
+
+
+---
+# Basic tidymodels components
+
+&lt;img src="images/blocks.png" width="70%" style="display: block; margin: auto;" /&gt;
+
+
+---
+# A relevant example
+
+Let's say that we have some highly correlated predictors and we want to reduce the correlation by first applying principal component analysis to the data. 
+
+ - AKA principal component regression
+ 
+---
+# A relevant example
+
+Let's say that we have some highly correlated predictors and we want to reduce the correlation by first applying principal component analysis to the data. 
+
+ - AKA ~~principal component regression~~ feature extraction
+
+
+---
+# A relevant example
+
+Let's say that we have some highly correlated predictors and we want to reduce the correlation by first applying principal component analysis to the data. 
+
+ - AKA ~~principal component regression~~ feature extraction
+
+What do we consider the estimation part of this process? 
+
+
+---
+# Is it this? 
+
+&lt;img src="images/faux-model.svg" width="70%" style="display: block; margin: auto;" /&gt;
+
+
+---
+# Or is it this? 
+
+&lt;img src="images/the-model.svg" width="70%" style="display: block; margin: auto;" /&gt;
+
+
+---
+# What's the difference?
+
+It is easy to think that the model fit is the only estimation steps. 
+
+There are cases where this could go really wrong: 
+
+* Poor estimation of performance (buy treating the PCA parts as known)
+
+* Selection bias in feature selection
+
+* Information leakage
+
+These problems are exacerbated as the preprocessors increase in complexity and/or effectiveness. 
+
+_We'll come back to this at the end of this section_
+
+---
+layout: false
+class: inverse, middle, center
+
+# Data splitting
+
+---
+layout: false
+class: inverse, middle, center
+background-color: #FFFFFF
+
+# &lt;span style="color:Black;"&gt;Always have a separate piece of data that can &lt;span style="color:Red;"&gt;&lt;b&gt;contradict&lt;/b&gt;&lt;/span&gt; what you &lt;span style="color:Blue;"&gt;&lt;b&gt;believe&lt;/b&gt;&lt;/span&gt;&lt;/span&gt;
+
+
+
+---
+
+# Data splitting and spending
+
+How do we "spend" the data to find an optimal model? 
+
+We _typically_ split data into training and test data sets:
+
+*  ***Training Set***: these data are used to estimate model parameters and to pick the values of the complexity parameter(s) for the model.
+
+*  ***Test Set***: these data can be used to get an independent assessment of model efficacy. **They should not be used during model training** (like, at all). 
+
+
+---
+
+# Data splitting and spending 
+
+The more data we spend, the better estimates we'll get (provided the data is accurate).  
+
+Given a fixed amount of data:
+
+* Too much spent in training won't allow us to get a good assessment of predictive performance.  We may find a model that fits the training data very well, but is not generalizable (overfitting)
+
+* Too much spent in testing won't allow us to get a good assessment of model parameters
+
+Statistically, the best course of action would be to use all the data for model building and use statistical methods to get good estimates of error.
+
+From a non-statistical perspective, many consumers of complex models emphasize the need for an untouched set of samples to evaluate performance.
+
+
+---
+
+# Large data sets
+
+When a large amount of data are available, it might seem like a good idea to put a large amount into the training set. _Personally_, I think that this causes more trouble than it is worth due to diminishing returns on performance and the added cost and complexity of the required infrastructure. 
+
+Alternatively, it is probably a better idea to reserve good percentages of the data for specific parts of the modeling process. For example: 
+
+* Save a large chunk of data to perform feature selection prior to model building
+* Retain data to calibrate class probabilities or determine a cutoff via an ROC curve. 
+
+Also, there may be little need for iterative resampling of the data. A single holdout (aka validation set) may be sufficient in some cases if the data are large enough and the data sampling mechanism is solid.  
+
+
+---
+
+# Mechanics of data splitting
+
+There are a few different ways to do the split: simple random sampling, _stratified sampling based on the outcome_, by date, or methods that focus on the distribution of the predictors.
+
+For stratification:
+
+* **classification**: this would mean sampling within the classes to preserve the distribution of the outcome in the training and test sets
+
+* **regression**: determine the quartiles of the data set and sample within those artificial groups
+
+For _time series_, we often use the most recent data as the test set. 
+
+---
+
+# Splitting with Chicago data
+
+`initial_split()` can be used when we use randomness to make the split.
+
+Let's put the last two weeks of data into the test set. `initial_time_split()` can be used for this purpose:
+
+
+```r
+chi_split &lt;- initial_time_split(Chicago, prop = 1 - (14/nrow(Chicago)))
+chi_split
+```
+
+```
+## &lt;Analysis/Assess/Total&gt;
+## &lt;5684/14/5698&gt;
+```
+
+```r
+chi_train &lt;- training(chi_split)
+chi_test  &lt;- testing(chi_split)
+
+c(training = nrow(chi_train), testing = nrow(chi_test))
+```
+
+```
+## training  testing 
+##     5684       14
+```
+
+
+---
+layout: false
+class: inverse, middle, center
+
+#  Creating models in R
+
+
+---
+
+# Specifying models in R using formulas
+
+To fit a model to the housing data, the model terms must be specified. Historically, there are two main interfaces for doing this. 
+
+The **formula** interface using R [formula rules](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Formulae-for-statistical-models) to specify a _symbolic_ representation of the terms:
+
+Variables + interactions
+
+
+```r
+# day_of_week is not in the data set but day_of_week = lubridate::wday(date, label = TRUE)
+model_fn(ridership ~ day_of_week + Western + day_of_week:Western, data = chi_train)
+```
+
+Shorthand for all predictors
+
+
+```r
+model_fn(ridership ~ ., data = chi_train)
+```
+
+Inline functions / transformations
+
+
+```r
+model_fn(log10(ridership) ~ ns(Western, df = 3) + ., data = chi_train)
+```
+
+---
+
+# Downsides to formulas
+
+* You can't nest in-line functions such as `model_fn(y ~ pca(scale(x1), scale(x2), scale(x3)), data = dat)`.
+
+* All the model matrix calculations happen at once and can't be recycled when used in a model function. 
+
+* For very _wide_ data sets, the formula method can be [extremely inefficient](https://rviews.rstudio.com/2017/03/01/the-r-formula-method-the-bad-parts/). 
+
+* There are limited _roles_ that variables can take which has led to several re-implementations of formulas. 
+
+* Specifying multivariate outcomes is clunky and inelegant.
+
+* Not all modeling functions have a formula method (consistency!). 
+
+---
+
+# Specifying models without formulas
+
+Some modeling function have a non-formula (XY) interface. This usually has arguments for the predictors and the outcome(s):
+
+
+```r
+# Usually, the variables must all be numeric
+pre_vars &lt;- c("Austin", "Clark_Lake", "California")
+model_fn(x = chi_train[, pre_vars],
+         y = chi_train$ridership)
+```
+
+This is inconvenient if you have transformations, factor variables, interactions, or any other operations to apply to the data prior to modeling. 
+
+Overall, it is difficult to predict if a package has one or both of these interfaces. For example, `lm` only has formulas. 
+
+There is a **third interface**, using _recipes_ that will be discussed later that solves some of these issues. 
+
+---
+
+# A linear regression model 
+
+Let's start by fitting an ordinary linear regression model to the training set. You can choose the model terms for your model, but I will use a very simple model:
+
+
+```r
+simple_lm &lt;- lm(ridership ~ Clark_Lake + humidity, data = chi_train)
+```
+
+Before looking at coefficients, we should do some model checking to see if there is anything obviously wrong with the model. 
+
+To get the statistics on the individual data points, we will use the awesome `broom` package:
+
+
+```r
+simple_lm_values &lt;- augment(simple_lm)
+names(simple_lm_values)
+```
+
+```
+## [1] "ridership"  "Clark_Lake" "humidity"   ".fitted"    ".resid"     ".hat"      
+## [7] ".sigma"     ".cooksd"    ".std.resid"
+```
+
+---
+layout: false
+class: inverse, middle, center
+
+#  Fitting via tidymodels
+
+---
+# The parsnip package
+
+.pull-left-a-lot[
+
+- A tidy unified _interface_ to models
+
+- `lm()` isn't the only way to perform linear regression
+  
+  - &lt;span class="pkg"&gt;glmnet&lt;/span&gt; for regularized regression
+  - &lt;span class="pkg"&gt;stan&lt;/span&gt; for Bayesian regression
+  - &lt;span class="pkg"&gt;keras&lt;/span&gt; for regression using tensorflow
+  
+- But...remember the consistency slide?
+
+  - Each interface has its own minutiae to remember
+  - &lt;span class="pkg"&gt;parsnip&lt;/span&gt; standardizes all that!
+]
+.pull-right-a-little[
+
+&lt;img src="images/all_the_models.jpeg" width="791" style="display: block; margin: auto;" /&gt;
+
+]
+
+  
+---
+
+# parsnip in action
+
+.pull-left[
+
+1) Create specification
+
+2) Set the engine
+
+3) Fit the model
+
+
+```r
+spec_lin_reg &lt;- linear_reg()
+spec_lin_reg
+```
+
+```
+## Linear Regression Model Specification (regression)
+## 
+## Computational engine: lm
+```
+
+```r
+spec_lm &lt;- spec_lin_reg %&gt;% set_engine("lm")
+spec_lm
+```
+
+```
+## Linear Regression Model Specification (regression)
+## 
+## Computational engine: lm
+```
+
+]
+
+.pull-right[
+
+
+```r
+fit_lm &lt;- fit(
+  spec_lm,
+  ridership ~ Clark_Lake + humidity,
+  data = chi_train
+)
+
+fit_lm
+```
+
+```
+## parsnip model object
+## 
+## Fit time:  2ms 
+## 
+## Call:
+## stats::lm(formula = ridership ~ Clark_Lake + humidity, data = data)
+## 
+## Coefficients:
+## (Intercept)   Clark_Lake     humidity  
+##      1.7645       0.8837      -0.0025
+```
+
+Note: Models have default engines. We don't really need to use `set_engine("lm")` for this example. 
+
+
+]
+
+
+---
+
+# Alternative engines
+
+With &lt;span class="pkg"&gt;parsnip&lt;/span&gt;, it is easy to switch to a different engine, like Stan, to run the
+same model with alternative backends.
+
+.pull-left[
+
+
+```r
+spec_stan &lt;- 
+  spec_lin_reg %&gt;%
+  # Engine specific arguments are 
+  # passed through here
+  set_engine("stan", chains = 4, iter = 1000)
+
+# Otherwise, looks exactly the same!
+fit_stan &lt;- fit(
+  spec_stan,
+  ridership ~ Clark_Lake + humidity,
+  data = chi_train
+)
+```
+
+]
+
+.pull-right[
+
+
+```r
+coef(fit_stan$fit)
+```
+
+```
+## (Intercept)  Clark_Lake    humidity 
+##    1.766884    0.883777   -0.002576
+```
+
+```r
+coef(fit_lm$fit)
+```
+
+```
+## (Intercept)  Clark_Lake    humidity 
+##    1.764496    0.883693   -0.002497
+```
+
+]
+
+---
+# Duplicate computations
+
+Note that, for both of these fits, some of the computations are repeated. 
+
+For example, the formula method does a fair amount of work to figure out how to turn the data frame into a matrix of predictors. 
+
+When there are special effects (e.g. splines), dummy variables, interactions, or other components, the formula/terms objects have to keep track of everything. 
+
+In cases where there are a lot of _predictors_, these computations can consume a lot of resources. If we can save them, that would be helpful. 
+
+The answer is a _workflow_ object. These bundle together a preprocessor (such as a formula) along with a model. 
+
+
+---
+# A modeling _workflow_ 
+
+We can _optionally_ bundle the recipe and model together into a &lt;span style="color:LightGray;"&gt;&lt;strike&gt;pipeline&lt;/strike&gt;&lt;/span&gt; _workflow_:
+
+
+```r
+reg_wflow &lt;- 
+  workflow() %&gt;%    # attached with the tidymodels package
+  add_model(spec_lm) %&gt;% 
+  add_formula(ridership ~ Clark_Lake + humidity) # or add_recipe() or add_variables()
+
+reg_fit &lt;- fit(reg_wflow, data = Chicago)
+reg_fit
+```
+
+```
+## ══ Workflow [trained] ═══════════════════════════════════════════════════════════════
+## Preprocessor: Formula
+## Model: linear_reg()
+## 
+## ── Preprocessor ─────────────────────────────────────────────────────────────────────
+## ridership ~ Clark_Lake + humidity
+## 
+## ── Model ────────────────────────────────────────────────────────────────────────────
+## 
+## Call:
+## stats::lm(formula = ..y ~ ., data = data)
+## 
+## Coefficients:
+## (Intercept)   Clark_Lake     humidity  
+##     1.76582      0.88386     -0.00255
+```
+
+
+---
+# Swapping models
+
+
+```r
+stan_wflow &lt;- 
+  reg_wflow %&gt;% 
+  update_model(spec_stan)
+
+set.seed(21)
+stan_fit &lt;- fit(stan_wflow, data = Chicago)
+stan_fit
+```
+
+```
+## ══ Workflow [trained] ═══════════════════════════════════════════════════════════════
+## Preprocessor: Formula
+## Model: linear_reg()
+## 
+## ── Preprocessor ─────────────────────────────────────────────────────────────────────
+## ridership ~ Clark_Lake + humidity
+## 
+## ── Model ────────────────────────────────────────────────────────────────────────────
+## stan_glm
+##  family:       gaussian [identity]
+##  formula:      ..y ~ .
+##  observations: 5698
+##  predictors:   3
+## ------
+##             Median MAD_SD
+## (Intercept) 1.8    0.2   
+## Clark_Lake  0.9    0.0   
+## humidity    0.0    0.0   
+## 
+## Auxiliary parameter(s):
+##       Median MAD_SD
+## sigma 3.1    0.0   
+## 
+## ------
+## * For help interpreting the printed output see ?print.stanreg
+## * For info on the priors used see ?prior_summary.stanreg
+```
+
+---
+# Workflows
+
+Once the first model is fit, the preprocessor (i.e. the formula) is processed and the model matrix is formed. 
+
+New models don't need to repeat those computations. 
+
+Some other nice features: 
+
+* Workflows are smarter with data than `model.matrix()` in terms of new factor levels. 
+* Other preprocessors can be used: recipes and `dplyr::select()` statements (that do no data processing).
+* As will be seen later, they can help organize your work when a sequence of models are used. 
+* A workflow captures the entire modeling process (mentioned earlier) and a simple `fit()` and `predict()` sequence are used for all of the estimation parts. 
+
+---
+# Using workflows to predict
+
+
+```r
+# generate some bogus data (instead of using the training or test sets)
+set.seed(3)
+shuffled_data &lt;- map_dfc(Chicago, ~ sample(.x, size = 10))
+
+predict(stan_fit, shuffled_data) %&gt;% slice(1:3)
+```
+
+```
+## # A tibble: 3 × 1
+##   .pred
+##   &lt;dbl&gt;
+## 1  15.9
+## 2  18.5
+## 3  17.4
+```
+
+```r
+predict(stan_fit, shuffled_data, type = "pred_int") %&gt;% slice(1:3)
+```
+
+```
+## # A tibble: 3 × 2
+##   .pred_lower .pred_upper
+##         &lt;dbl&gt;       &lt;dbl&gt;
+## 1        10.2        22.0
+## 2        12.5        24.5
+## 3        11.3        23.4
+```
+
+---
+# The tidymodels prediction guarantee!
+
+
+.pull-left-a-lot[
+
+* The predictions will always be inside a **tibble**.
+* The column names and types are **unsurprising**.
+* The number of rows in `new_data` and the output **are the same**. 
+
+]
+.pull-right-a-little[
+
+&lt;img src="images/guarantee.png" width="352" style="display: block; margin: auto;" /&gt;
+
+]
+
+This enables the use of `bind_cols()` to combine the original data and the predictions. 
+
+
+---
+# Evaluating models
+
+tidymodels has a [lot of performance metrics](https://yardstick.tidymodels.org/reference/index.html) for different types of models (e.g. binary classification, etc). 
+
+Each takes a tibble as an input along with the observed and predicted column names: 
+
+
+```r
+pred_results &lt;- 
+  predict(stan_fit, shuffled_data) %&gt;% 
+  bind_cols(shuffled_data)
+
+# Data was randomized; these results should be bad
+pred_results %&gt;% rmse(truth = ridership, estimate = .pred)
+```
+
+```
+## # A tibble: 1 × 3
+##   .metric .estimator .estimate
+##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+## 1 rmse    standard        6.17
+```
+
+
+---
+# Multiple metrics/KPIs
+
+A _metric set_ can bundle multiple statistics: 
+
+
+```r
+reg_metrics &lt;- metric_set(rmse, rsq, mae, ccc)
+
+# A tidy format of the results
+pred_results %&gt;% reg_metrics(truth = ridership, estimate = .pred)
+```
+
+```
+## # A tibble: 4 × 3
+##   .metric .estimator .estimate
+##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+## 1 rmse    standard       6.17 
+## 2 rsq     standard       0.304
+## 3 mae     standard       4.36 
+## 4 ccc     standard       0.434
+```
+
+
+---
+# broom methods
+
+&lt;span class="pkg"&gt;parsnip&lt;/span&gt; and &lt;span class="pkg"&gt;workflow&lt;/span&gt; fits have corresponding &lt;span class="pkg"&gt;broom&lt;/span&gt; tidiers: 
+
+
+```r
+glance(reg_fit)
+```
+
+```
+## # A tibble: 1 × 12
+##   r.squared adj.r.squared sigma statistic p.value    df  logLik    AIC    BIC
+##       &lt;dbl&gt;         &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+## 1     0.781         0.781  3.07    10157.       0     2 -14477. 28963. 28989.
+## # … with 3 more variables: deviance &lt;dbl&gt;, df.residual &lt;int&gt;, nobs &lt;int&gt;
+```
+
+```r
+tidy(reg_fit)
+```
+
+```
+## # A tibble: 3 × 5
+##   term        estimate std.error statistic  p.value
+##   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+## 1 (Intercept)  1.77      0.222       7.96  2.07e-15
+## 2 Clark_Lake   0.884     0.00621   142.    0       
+## 3 humidity    -0.00255   0.00294    -0.867 3.86e- 1
+```
+
+---
+# broom methods
+
+For `augment()` we require the data to predict and attach
+
+
+```r
+augment(reg_fit, shuffled_data %&gt;% select(Clark_Lake, humidity, ridership))
+```
+
+```
+## # A tibble: 10 × 4
+##   Clark_Lake humidity ridership .pred
+##        &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt; &lt;dbl&gt;
+## 1      16.3      78        6.36 15.9 
+## 2      19.2      70       19.3  18.5 
+## 3      17.8      45       15.7  17.4 
+## 4      19.9      50        4.31 19.3 
+## 5      18.7      61       18.7  18.1 
+## 6       2.13     54.5      8.44  3.51
+## # … with 4 more rows
+```
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"slideNumberFormat": "<div class=\"progress-bar-container\">\n  <div class=\"progress-bar\" style=\"width: calc(%current% / %total% * 100%);\">\n  </div>\n</div>\n",
+"highlightStyle": "rainbow",
+"highlightLanguage": ["r", "css", "yaml"],
+"highlightLines": true,
+"countIncrementalSlides": false,
+"ratio": "16:9"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
