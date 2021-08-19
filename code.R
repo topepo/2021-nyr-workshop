@@ -258,7 +258,7 @@ chi_rs <-
     period = "week",
     lookback = 52 * 15,
     assess_stop = 2,
-    step = 2 #<<
+    step = 2 
   )
 
 
@@ -334,7 +334,7 @@ explore(chi_res, hover_cols = c(date, ridership))
 
 # Add a date column to time series resampling object metrics
 add_date_to_metrics <- function(x, date_col, value = min, ...) {
-  res <- collect_metrics(x, summarize = FALSE, ...) #<<
+  res <- collect_metrics(x, summarize = FALSE, ...) 
   x %>% 
     mutate(
       # Get the assessment set
@@ -376,7 +376,7 @@ chi_rec <-
   update_role(date, new_role = "id") %>% 
   step_dummy(all_nominal_predictors()) %>% 
   step_zv(all_predictors()) %>% 
-  step_ns(temp, deg_free = tune()) %>%  #<<
+  step_ns(temp, deg_free = tune()) %>%  
   step_normalize(all_numeric_predictors())
 
 chi_wflow <- 
