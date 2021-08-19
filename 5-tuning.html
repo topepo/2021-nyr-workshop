@@ -374,22 +374,22 @@ ctrl &lt;- control_grid(save_pred = TRUE)
 set.seed(9)
 chi_res &lt;- 
   chi_wflow %&gt;% 
-  tune_grid(resamples = chi_rs, grid = grid) # 'grid' = integer for automatic grids
+  tune_grid(resamples = chi_rs, grid = grid, control = ctrl) # 'grid' = integer for automatic grids
 chi_res
 ```
 
 ```
 ## # Tuning results
 ## # Sliding period resampling 
-## # A tibble: 16 × 4
-##   splits            id      .metrics          .notes          
-##   &lt;list&gt;            &lt;chr&gt;   &lt;list&gt;            &lt;list&gt;          
-## 1 &lt;split [5463/14]&gt; Slice01 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
-## 2 &lt;split [5467/14]&gt; Slice02 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
-## 3 &lt;split [5467/14]&gt; Slice03 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
-## 4 &lt;split [5467/14]&gt; Slice04 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
-## 5 &lt;split [5467/14]&gt; Slice05 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
-## 6 &lt;split [5467/14]&gt; Slice06 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt;
+## # A tibble: 16 × 5
+##   splits            id      .metrics          .notes           .predictions      
+##   &lt;list&gt;            &lt;chr&gt;   &lt;list&gt;            &lt;list&gt;           &lt;list&gt;            
+## 1 &lt;split [5463/14]&gt; Slice01 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt; &lt;tibble [350 × 7]&gt;
+## 2 &lt;split [5467/14]&gt; Slice02 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt; &lt;tibble [350 × 7]&gt;
+## 3 &lt;split [5467/14]&gt; Slice03 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt; &lt;tibble [350 × 7]&gt;
+## 4 &lt;split [5467/14]&gt; Slice04 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt; &lt;tibble [350 × 7]&gt;
+## 5 &lt;split [5467/14]&gt; Slice05 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt; &lt;tibble [350 × 7]&gt;
+## 6 &lt;split [5467/14]&gt; Slice06 &lt;tibble [50 × 7]&gt; &lt;tibble [0 × 1]&gt; &lt;tibble [350 × 7]&gt;
 ## # … with 10 more rows
 ```
 

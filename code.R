@@ -25,21 +25,10 @@ mtcars <- mtcars[order(mtcars$cyl),]
 mtcars <- mtcars[, "mpg", drop = FALSE]
 
 
-# ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 
 mtcars$mp        # matches incomplete arg
 mtcars[, "mpg"]  # a vector
-
-
-# ──────────────────────────────────────────────
-
-num_args <- function(x) length(formals(x))
-
-
-num_args(caret::trainControl) +
-  num_args(caret:::train.default)
-
-
 
 # ------------------------------------------------------------------------------
 
@@ -47,51 +36,11 @@ mtcars %>%
   arrange(cyl) %>%
   select(mpg)
 
-# ──────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 
 tb_cars <- as_tibble(mtcars)
 tb_cars$mp        # fails
 tb_cars[, "mpg"]  # A tibble
-
-# ──────────────────────────────────────────────
-
-
-
-num_args(linear_reg) + num_args(set_engine) +
-  num_args(tune_grid) + num_args(control_grid) +
-  num_args(vfold_cv)
-
-
-
-# ------------------------------------------------------------------------------
-
-library(leaflet)
-
-load("RData/station_locations.RData")
-
-other_stations <- 
-  station_locations %>% 
-  filter(!grepl("Clark/Lake", description, fixed = TRUE))
-
-clark_lake <- 
-  anti_join(station_locations, other_stations, by = c("lon", "lat", "description"))
-
-leaflet() %>%
-  addTiles() %>%
-  addCircleMarkers(
-    other_stations$lon,
-    other_stations$lat,
-    popup = other_stations$description,
-    color = "red",
-    radius = 3
-  ) %>%
-  addCircleMarkers(
-    clark_lake$lon,
-    clark_lake$lat,
-    color = "green",
-    radius = 6
-  )
-
 
 # ------------------------------------------------------------------------------
 
@@ -448,6 +397,18 @@ grid %>%
   ggplot(aes(penalty, mixture, col = deg_free)) +
   geom_point(cex = 4) +
   scale_x_log10()
+
+# ------------------------------------------------------------------------------
+# optional for parallel processing:
+
+# Windows:
+# library(doParallel)
+# cl <- makePSOCKcluster(parallel::detectCores(logical = FALSE))
+# registerDoParallel(cl)
+
+# macOS or linux
+# library(doMC)
+# registerDoMC(cores = parallel::detectCores(logical = FALSE))
 
 # ------------------------------------------------------------------------------
 
