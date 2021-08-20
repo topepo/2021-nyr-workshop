@@ -417,7 +417,7 @@ ctrl <- control_grid(save_pred = TRUE)
 set.seed(9)
 chi_res <- 
   chi_wflow %>% 
-  tune_grid(resamples = chi_rs, grid = grid) # 'grid' = integer for automatic grids
+  tune_grid(resamples = chi_rs, grid = grid, control = ctrl) # 'grid' = integer for automatic grids
 
 chi_res
 
