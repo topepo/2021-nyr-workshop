@@ -27,4 +27,4 @@ remotes::install_github("adhikars11/shinymodels")
 
 ## RStudio Cloud
 
-Max will have a link if you would like to use RStudio Cloud (at no cost but proably requires an  account). 
+Max will have a link if you would like to use RStudio Cloud (at no cost but probably requires an  account). 
