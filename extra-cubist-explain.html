@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Cubist/Model Explanations</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Max Kuhn" />
+    <script src="libs/header-attrs-2.9/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <script src="libs/kePrint-0.0.1/kePrint.js"></script>
+    <link href="libs/lightable-0.0.1/lightable.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/theme.css" type="text/css" />
+    <link rel="stylesheet" href="css/fonts.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+
+
+
+
+
+
+
+class: title-slide, left, middle
+background-image: url("images/tidymodels.svg")
+background-position: 85% 50%
+background-size: 30%
+background-color: #F9F8F3
+
+.pull-left[
+
+# Cubist/Model Explanations
+
+## Max Kuhn
+
+### New York R Conference
+
+### Repo: [https://github.com/topepo/2021-nyr-workshop](https://github.com/topepo/https://github.com/topepo/2021-nyr-workshop)
+
+]
+
+---
+layout: false
+class: inverse, middle, center
+
+# Cubist Regression Models
+
+
+---
+# Cubist
+
+Cubist is an ensemble model with two main phases: 
+
+ - A prediction from a rule-based model.
+ - A post-fit adjustment based on a nearest-neighbor model. 
+ 
+We'll give a broad overview here but more information can be found in _Applied Predictive Modeling_ as well as posts on the [RViews blog](https://rviews.rstudio.com/2020/05/21/modern-rule-based-models/) and the [tidyverse blog](https://www.tidyverse.org/blog/2020/05/rules-0-0-1/). 
+ 
+---
+# A single Cubist rule-set
+
+A basic Cubist model derived a set of rules from a regression tree. For each rule there is an associated linear regression model. The predictions from each rule are averaged into an overall prediction. 
+
+For example:
+
+```
+Rule 1: [107 cases, mean 3419.2, range 2700 to 4150, est err 208.3]
+
+if (flipper_length_mm &lt;= 202 &amp; sex = female) then
+
+	outcome = -1068 + 108 bill_depth_mm + 10.7 flipper_length_mm
+	          + 14 bill_length_mm
+
+------------------------------------------------------------------------------
+
+Rule 2: [97 cases, mean 3949.7, range 2975 to 4775, est err 288.9]
+
+if (bill_depth_mm &lt;= 16 &amp; flipper_length_mm &gt; 202) then
+
+	outcome = -595.8 + 24.1 flipper_length_mm - 16 bill_length_mm
+	          + 30 bill_depth_mm
+```
+
+---
+# Ensembles
+
+.pull-left-a-lot[
+Cubist can also create a rule ensemble via a boosting-like procedure called _model committees_. 
+
+ - This adjusts the outcome data across iterations to deliberately bias the model up or down based on previously under- or over-predicting. 
+ 
+All of the Cubist rule-set predictions are averaged across committees into a single prediction. 
+
+As an example, suppose a training set point has an outcome value of `5.0`. A sequence of adjustments might be...
+]
+.pull-right-a-little[
+
+
+&lt;table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; committee &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; outcome &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; prediction &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5.0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 6.5 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3.5 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 6.2 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3.8 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5.1 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 4 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4.9 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4.6 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 5 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5.4 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5.1 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+]
+
+
+
+
+---
+# Post-model neighbor adjustment
+
+There is also an option to take the model-based prediction and adjust it based on the nearest neighbors in the training set. 
+
+If the training set predictions for the neighbors are denoted as `\(t\)`, the adjustment is:  
+
+`$$\widehat{y}_{adj} = \frac{1}{K}\sum_{\ell=1}^K w_\ell \left[t_\ell  + \left(\widehat{y} - \widehat{t}_\ell \right)\right]$$`
+
+where the weights `\(w_\ell\)` are based on the inverse distances (so that far points contribute less to the adjustment). 
+
+- The adjustment is large when the difference between the original and new predictions is large. 
+
+
+---
+# Post-model neighbor adjustment
+
+&lt;img src="images/tuning-knn-1.svg" width="50%" style="display: block; margin: auto;" /&gt;
+
+---
+# Test set example
+
+
+.pull-left[
+In practice, either no adjustment or 5+ neighbors work well. 
+
+A small number of neighbors has a tendency to overfit. 
+]
+.pull-right[
+&lt;img src="images/nn_gif" width="100%" style="display: block; margin: auto;" /&gt;
+]
+
+
+---
+# Fitting a Cubist model
+
+The &lt;span class="pkg"&gt;rules&lt;/span&gt; package has &lt;span class="pkg"&gt;parsnip&lt;/span&gt; model definitions for Cubist and other rule-based models. 
+
+
+```r
+library(rules)
+
+cb_spec &lt;- cubist_rules(committees = 25, neighbors = 7) %&gt;% set_engine("Cubist")
+
+chi_rec &lt;- 
+  recipe(ridership ~ ., data = chi_train) %&gt;% 
+  step_date(date, features = c("dow", "year")) %&gt;% 
+  step_holiday(date) %&gt;% 
+  update_role(date, new_role = "id") 
+
+cb_wflow &lt;- 
+  workflow() %&gt;% 
+  add_model(cb_spec) %&gt;% 
+  add_recipe(chi_rec)
+
+cb_fit &lt;- cb_wflow %&gt;% fit(data = chi_train)
+```
+
+---
+# An example rule
+
+The third rule in the second committee was: 
+
+
+```
+##   Rule 2/3: [172 cases, mean 6.51195, range 2.601 to 8.912, est err 0.59799]
+## 
+##     if
+## 	Clark_Lake &gt; 5.096
+## 	temp_max &gt; 80.1
+## 	date_dow in {Sun, Sat}
+##     then
+## 	outcome = 1.50189 + 0.46 Clark_Lake + 0.55 Western - 1.1 Oak_Park
+## 	          + 1.7 California + 0.019 temp_max - 0.01 temp_min
+```
+
+Running the `summary()` function on the `cubist` model object will print out the rules, i.e.,
+
+
+```r
+cb_fit %&gt;% extract_fit_engine() %&gt;% summary()
+```
+
+Note that the model works on factor predictors (i.e., binary indicators are **not** required).
+
+---
+# Predicting a Cubist model
+
+
+```r
+cb_fit %&gt;% 
+  augment(chi_test) %&gt;% 
+  rmse(ridership, .pred)
+```
+
+```
+## # A tibble: 1 × 3
+##   .metric .estimator .estimate
+##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+## 1 rmse    standard       0.811
+```
+
+The model can also be tuned via the basic tidymodels functions (e.g. `tune_grid()`). 
+
+---
+layout: false
+class: inverse, middle, center
+
+# Model Explainers
+
+
+---
+# Explainers
+
+There has been an explosion of methods for trying to explain characteristics of the model. There are numerous R packages to do this, such as &lt;span class="pkg"&gt;lime&lt;/span&gt;, &lt;span class="pkg"&gt;DALEX&lt;/span&gt;, &lt;span class="pkg"&gt;iml&lt;/span&gt;, &lt;span class="pkg"&gt;vip&lt;/span&gt;, and others. 
+
+Some resources: 
+
+* [_Explanatory Model Analysis_](https://ema.drwhy.ai/)
+* [_Interpretable Machine Learning_](https://christophm.github.io/interpretable-ml-book/)
+* _Tidy Models with R_ [Chapter 18](https://www.tmwr.org/explain.html#explain)
+* [_Interpretable AI_](https://www.manning.com/books/interpretable-ai) (not yet released; python focused)
+
+---
+# Explainers
+
+We'll focus on two approaches: 
+
+* Model agnostic variable importance scores via permutation. 
+
+* Break-down plots for specific predictions. 
+
+Currently, the &lt;span class="pkg"&gt;DALEXtra&lt;/span&gt; has the best support for tidymodels, so we'll stick with that. 
+
+---
+# A DALEX explainer object
+
+The DALEX framework usually begins by creating a base object for explanations: 
+
+
+```r
+library(DALEXtra)
+cb_explainer &lt;- 
+  explain_tidymodels(
+    cb_fit, 
+    data = chi_train %&gt;% select(-ridership), 
+    y = chi_train$ridership,
+    label = "Cubist",
+    verbose = FALSE
+  )
+```
+
+---
+# Permutation-based importance scores
+
+.pull-left[
+These methods take the original predictions and compare them to predictions made when a specific predictor is permuted. 
+
+* This means the original predictor column, as opposed to a derivative feature (such as day of the week).
+
+If there is a significant change in performance, the predictor was important to the model. 
+
+More info in [_EMA_](https://ema.drwhy.ai/featureImportance.html) and [_IML_](https://christophm.github.io/interpretable-ml-book/feature-importance.html)
+]
+.pull-right[
+
+```r
+set.seed(123)
+cb_vip &lt;- 
+  cb_explainer %&gt;% 
+  # Randomly selects a subset of data for 
+  # evaluation. `B` is the number of 
+  # permutations (default: 10)
+  model_parts(
+    loss_function = loss_root_mean_square, 
+    B = 3
+  ) 
+```
+]
+
+---
+# Plotting the importance scores
+
+
+.pull-left[
+
+To show the results: 
+
+
+```r
+plot(cb_vip)
+```
+
+[Chapter 18](https://www.tmwr.org/explain.html#explain) of _Tidy Models with R_  has some &lt;span class="pkg"&gt;ggplot2&lt;/span&gt; code to use as an alternate plot method. 
+
+]
+.pull-right[
+&lt;img src="images/tuning-vip-1.svg" width="85%" style="display: block; margin: auto;" /&gt;
+]
+
+
+---
+# Explaining predictions
+
+There are numerous ways to explain specific predictions. We'll focus here on "break-down plots". 
+
+These try to isolate the contributions of each predictor (while fixing the other variables). 
+
+There are methods for additive models (the default) and those that can handle interactions. We'll start with the additive model approach. 
+
+More info in [_EMA_](https://ema.drwhy.ai/breakDown.html) and [_IML_](https://ema.drwhy.ai/LIME.html).
+
+---
+# Explaining predictions
+
+The `predict_parts()` function can be used to get the data on how each variable contributes to the final prediction. 
+
+
+```r
+library(lubridate)
+aug_15 &lt;- chi_test %&gt;% filter(date == ymd("2016-08-15"))
+
+set.seed(234)
+aug_15_break_down &lt;- predict_parts(cb_explainer, aug_15)
+```
+
+---
+# Plotting contributions
+
+.pull-left[
+
+```r
+plot(aug_15_break_down)
+```
+
+]
+.pull-right[
+&lt;img src="images/tuning-contrib-1.svg" width="80%" style="display: block; margin: auto;" /&gt;
+]
+
+
+---
+# Ordering effects with interaction models
+
+If a model is not additive (i.e., not interactions), the order in which the plot shows the variables can change the contribution values. 
+
+* This includes MARS, tree-based models, neural networks, some linear models, and others.
+
+We suggest sticking with a standard predictor order or use `type = "break_down_interactions"`. This takes longer but is more safe. 
+
+ * For this model and data, the interaction-based method has almost identical results. 
+
+---
+# Ordering effects with interaction models
+
+Let's take a random ordering and see how it compares to the previous results
+
+
+```r
+set.seed(345)
+pred_names &lt;- 
+  aug_15 %&gt;% 
+  select(-ridership) %&gt;% 
+  names() %&gt;% 
+  sample()
+
+set.seed(234)
+aug_15_break_down_alt &lt;- 
+  predict_parts(cb_explainer, aug_15, order = pred_names)
+```
+
+---
+# Plotting contributions - alternate order
+
+.pull-left[
+Original ordering:
+
+&lt;img src="images/tuning-contrib-repeat-1.svg" width="90%" style="display: block; margin: auto;" /&gt;
+]
+.pull-right[
+Random ordering: 
+
+&lt;img src="images/tuning-contrib-reorder-1.svg" width="90%" style="display: block; margin: auto;" /&gt;
+]
+
+
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"slideNumberFormat": "<div class=\"progress-bar-container\">\n  <div class=\"progress-bar\" style=\"width: calc(%current% / %total% * 100%);\">\n  </div>\n</div>\n",
+"highlightStyle": "rainbow",
+"highlightLanguage": ["r", "css", "yaml"],
+"highlightLines": true,
+"countIncrementalSlides": false,
+"ratio": "16:9"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
