@@ -11,7 +11,10 @@ You can access the R packages in two different ways.
 To install:
 
 ```r
-install.packages(c("tidymodels", "glmnet", "lubridate"), repos = "http://cran.rstudio.com")
+install.packages(
+  c("tidymodels", "glmnet", "lubridate", "Cubist", "rules", "DALEXtra"), 
+  repos = "http://cran.rstudio.com"
+)
 ```
 
 Optionally, you can also use the new `shinymodels` package. Install it using the `remotes` package:
@@ -22,3 +25,6 @@ install.packages(c("remotes"), repos = "http://cran.rstudio.com")
 remotes::install_github("adhikars11/shinymodels")
 ```
 
+## RStudio Cloud
+
+Max will have a link if you would like to use RStudio Cloud (at no cost but proably requires an  account). 
