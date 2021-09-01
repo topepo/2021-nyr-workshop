@@ -49,6 +49,32 @@ dim(Chicago)
 stations
 
 # ------------------------------------------------------------------------------
+
+# Live coding from hands on:
+
+library(skimr)
+
+skim(Chicago)
+
+library(ggforce)
+# https://www.data-imaginist.com/2019/a-flurry-of-facets/
+
+Chicago %>% 
+  select(starts_with("temp")) %>% 
+  ggplot(aes(x = .panel_x, y = .panel_y)) + 
+  geom_point(alpha = 0.2, shape = 16, size = 0.5) + 
+  facet_matrix(vars(everything()))
+
+Chicago %>% 
+  ggplot(aes(date, ridership)) + 
+  geom_line(alpha = .3) + 
+  geom_smooth(method="gam", bs="cs")
+
+Chicago %>% 
+  ggplot(aes(ridership)) + 
+  geom_histogram(bins = 30, col = "white")
+
+# ------------------------------------------------------------------------------
 # Part 2
 
 chi_split <- initial_time_split(Chicago, prop = 1 - (14/nrow(Chicago)))
